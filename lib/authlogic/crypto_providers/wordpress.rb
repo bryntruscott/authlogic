@@ -7,12 +7,19 @@ module Authlogic
 
         def matches?(crypted, *tokens)
           stretches = 1 << ITOA64.index(crypted[3,1])
-          plain, salt = *tokens 
+          plain, salt = *tokens
+          if salt.nil?
+            salt = crypted[4, 8]
+          end
           hashed = Digest::MD5.digest(salt+plain)
           stretches.times do |i|
             hashed = Digest::MD5.digest(hashed+plain)
           end
           crypted[0,12]+encode_64(hashed, 16) == crypted
+
+        rescue Exception => e
+          # probably not a WordPress hash
+          false
         end
 
         def encode_64(input, length)
@@ -22,18 +29,19 @@ module Authlogic
             value = input[i] 
             i+=1
             break if value.nil?
-            output += ITOA64[value & 0x3f, 1]
-            value |= input[i] << 8 if i < length
-            output += ITOA64[(value >> 6) & 0x3f, 1]
+            value_ord = value.ord
+            output += ITOA64[value_ord & 0x3f, 1]
+            value_ord |= input[i].ord << 8 if i < length
+            output += ITOA64[(value_ord >> 6) & 0x3f, 1]
 
             i+=1
             break if i >= length
-            value |= input[i] << 16 if i < length
-            output += ITOA64[(value >> 12) & 0x3f,1]
+            value_ord |= input[i].ord << 16 if i < length
+            output += ITOA64[(value_ord >> 12) & 0x3f,1]
 
             i+=1
             break if i >= length
-            output += ITOA64[(value >> 18) & 0x3f,1]
+            output += ITOA64[(value_ord >> 18) & 0x3f,1]
           end
           output
         end
